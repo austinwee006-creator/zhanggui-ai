@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from "react";
 
-type Tool = "menu" | "whatsapp" | "video";
+type Tool = "menu" | "whatsapp" | "video" | "adimage";
 
 type MenuInputs = {
   dishName: string;
@@ -32,6 +32,7 @@ const TOOLS: { id: Tool; label: string }[] = [
   { id: "menu", label: "菜单文案" },
   { id: "whatsapp", label: "WhatsApp 回复" },
   { id: "video", label: "短视频脚本" },
+  { id: "adimage", label: "广告图片" },
 ];
 
 function PillGroup({
@@ -232,6 +233,14 @@ export default function ToolsPage() {
     style: "美食特写",
   });
 
+  const [adImageFile, setAdImageFile] = useState<File | null>(null);
+  const [adImagePreview, setAdImagePreview] = useState<string>("");
+  const [adImageStyle, setAdImageStyle] = useState("餐厅宣传");
+  const [adImageBg, setAdImageBg] = useState("木纹桌面");
+  const [generatedImageUrl, setGeneratedImageUrl] = useState("");
+  const [adImageLoading, setAdImageLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const handleReset = () => {
     setOutput("");
     setStreaming("");
@@ -246,10 +255,59 @@ export default function ToolsPage() {
     if (activeTool === "menu") return menuInputs.dishName.trim().length > 0;
     if (activeTool === "whatsapp") return waInputs.customerMessage.trim().length > 0;
     if (activeTool === "video") return videoInputs.topic.trim().length > 0;
+    if (activeTool === "adimage") return adImageFile !== null;
     return false;
-  }, [activeTool, menuInputs, waInputs, videoInputs]);
+  }, [activeTool, menuInputs, waInputs, videoInputs, adImageFile]);
+
+  const handleFileChange = (file: File) => {
+    setAdImageFile(file);
+    setGeneratedImageUrl("");
+    const reader = new FileReader();
+    reader.onload = (e) => setAdImagePreview(e.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const generateAdImage = async () => {
+    if (!adImageFile || adImageLoading) return;
+    setGeneratedImageUrl("");
+    setAdImageLoading(true);
+
+    try {
+      const reader = new FileReader();
+      const base64 = await new Promise<string>((resolve) => {
+        reader.onload = (e) => {
+          const result = e.target?.result as string;
+          resolve(result.split(",")[1]);
+        };
+        reader.readAsDataURL(adImageFile);
+      });
+
+      const res = await fetch("/api/image-gen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageBase64: base64,
+          mimeType: adImageFile.type,
+          style: adImageStyle,
+          background: adImageBg,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.imageUrl) {
+        setGeneratedImageUrl(data.imageUrl);
+      } else {
+        alert(data.error || "生成失败，请重试");
+      }
+    } catch {
+      alert("生成失败，请重试");
+    } finally {
+      setAdImageLoading(false);
+    }
+  };
 
   const generate = async () => {
+    if (activeTool === "adimage") { generateAdImage(); return; }
     if (!canGenerate() || loading) return;
 
     setOutput("");
@@ -479,6 +537,98 @@ export default function ToolsPage() {
           </div>
         )}
 
+        {/* Ad Image Tool */}
+        {activeTool === "adimage" && (
+          <div className="space-y-4">
+            <div>
+              <Label required>上传菜肴照片</Label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => { if (e.target.files?.[0]) handleFileChange(e.target.files[0]); }}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className={`w-full rounded-2xl border-2 border-dashed transition-colors flex flex-col items-center justify-center py-6 gap-2 ${
+                  adImagePreview
+                    ? "border-amber-300 dark:border-amber-600/50"
+                    : "border-stone-200 dark:border-stone-700 hover:border-amber-300"
+                }`}
+              >
+                {adImagePreview ? (
+                  <img src={adImagePreview} alt="preview" className="max-h-48 rounded-xl object-cover" />
+                ) : (
+                  <>
+                    <svg className="w-8 h-8 text-stone-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                    </svg>
+                    <span className="text-sm text-stone-400">点击上传照片</span>
+                    <span className="text-xs text-stone-300">JPG / PNG / HEIC</span>
+                  </>
+                )}
+              </button>
+              {adImagePreview && (
+                <button
+                  onClick={() => { setAdImageFile(null); setAdImagePreview(""); setGeneratedImageUrl(""); }}
+                  className="mt-1.5 text-xs text-stone-400 hover:text-stone-600"
+                >
+                  重新选择
+                </button>
+              )}
+            </div>
+
+            <div>
+              <Label>广告风格</Label>
+              <PillGroup
+                options={["餐厅宣传", "社媒风格", "高端精品", "简洁清新"]}
+                value={adImageStyle}
+                onChange={setAdImageStyle}
+              />
+            </div>
+
+            <div>
+              <Label>背景</Label>
+              <PillGroup
+                options={["木纹桌面", "大理石", "深色背景", "白色背景"]}
+                value={adImageBg}
+                onChange={setAdImageBg}
+              />
+            </div>
+
+            {generatedImageUrl && (
+              <div className="rounded-2xl border border-stone-200 dark:border-stone-700/60 overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-2.5 border-b border-stone-100 dark:border-stone-700/50">
+                  <span className="text-xs font-medium text-stone-500 dark:text-stone-400">生成结果</span>
+                  <a
+                    href={generatedImageUrl}
+                    download="ad-photo.png"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-xs text-stone-400 hover:text-stone-700 dark:hover:text-stone-300"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                    </svg>
+                    下载
+                  </a>
+                </div>
+                <div className="p-3 grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-xs text-stone-400 mb-1.5 text-center">原图</p>
+                    <img src={adImagePreview} alt="original" className="w-full rounded-xl object-cover aspect-square" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-stone-400 mb-1.5 text-center">广告图</p>
+                    <img src={generatedImageUrl} alt="generated" className="w-full rounded-xl object-cover aspect-square" />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Output Area */}
         {displayText && (
           <div className="rounded-2xl border border-stone-200 dark:border-stone-700/60 bg-white dark:bg-stone-800/60 overflow-hidden">
@@ -503,16 +653,18 @@ export default function ToolsPage() {
       <div className="px-4 pt-3 pb-6 border-t border-stone-100 dark:border-stone-800/60 bg-stone-50 dark:bg-[#111110]">
         <button
           onClick={loading ? () => abortRef.current?.abort() : generate}
-          disabled={!loading && !canGenerate()}
+          disabled={activeTool === "adimage" ? adImageLoading || !adImageFile : !loading && !canGenerate()}
           className={`w-full py-3 rounded-2xl text-sm font-semibold transition-all ${
-            loading
+            (activeTool === "adimage" ? adImageLoading : loading)
               ? "bg-stone-200 dark:bg-stone-700 text-stone-500 dark:text-stone-400"
               : canGenerate()
               ? "bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-sm hover:opacity-90 active:scale-[0.98]"
               : "bg-stone-100 dark:bg-stone-800 text-stone-300 dark:text-stone-600 cursor-not-allowed"
           }`}
         >
-          {loading ? "停止生成" : "生成"}
+          {activeTool === "adimage"
+            ? adImageLoading ? "生成中（约20秒）..." : "生成广告图片"
+            : loading ? "停止生成" : "生成"}
         </button>
       </div>
     </div>
