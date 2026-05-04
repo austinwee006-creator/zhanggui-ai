@@ -1,3 +1,6 @@
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 
