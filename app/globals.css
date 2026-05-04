@@ -1,26 +1,99 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fafaf9;
+  --foreground: #1c1917;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #111110;
+    --foreground: #e7e5e4;
   }
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Hide scrollbar but keep scroll */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Message enter animation */
+@keyframes msgEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.msg-enter {
+  animation: msgEnter 0.2s ease-out both;
+}
+
+/* Prose styles for AI responses */
+.prose-response {
+  line-height: 1.7;
+  word-break: break-word;
+  font-size: 0.875rem;
+}
+
+.prose-response p {
+  margin-bottom: 0.6rem;
+}
+
+.prose-response p:last-child {
+  margin-bottom: 0;
+}
+
+.prose-response ul,
+.prose-response ol {
+  margin: 0.4rem 0 0.6rem 1.2rem;
+}
+
+.prose-response li {
+  margin-bottom: 0.2rem;
+}
+
+.prose-response strong {
+  font-weight: 600;
+}
+
+/* Blinking cursor during streaming */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.cursor-blink {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: currentColor;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  animation: blink 1s step-end infinite;
+  opacity: 0.6;
 }
