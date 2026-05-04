@@ -4,14 +4,13 @@ export const dynamic = "force-dynamic";
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
 export async function POST(request: Request) {
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
   try {
     const { imageBase64, mimeType, style, background } = await request.json();
 
-    // Step 1: Claude Vision analyzes the food photo
     const analysis = await anthropic.messages.create({
       model: "claude-sonnet-4-6",
       max_tokens: 512,
