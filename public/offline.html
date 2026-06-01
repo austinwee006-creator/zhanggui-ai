@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>掌柜 AI — 离线</title>
+    <style>
+      html, body { height: 100%; margin: 0; }
+      body {
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 12px; background: #111110; color: #e7e5e4;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+        padding: 24px; text-align: center;
+      }
+      .logo {
+        width: 64px; height: 64px; border-radius: 18px;
+        background: linear-gradient(135deg, #fbbf24, #f97316);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 30px; font-weight: 700; color: #fff;
+      }
+      h1 { font-size: 18px; margin: 8px 0 0; }
+      p { font-size: 14px; color: #a8a29e; margin: 0; max-width: 280px; line-height: 1.6; }
+      button {
+        margin-top: 8px; padding: 10px 20px; border: none; border-radius: 14px;
+        background: linear-gradient(90deg, #fbbf24, #f97316); color: #fff;
+        font-size: 14px; font-weight: 600; cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="logo">掌</div>
+    <h1>目前离线</h1>
+    <p>网络恢复后即可继续。已输入的资料都已存在本机，连线后会自动同步到云端。</p>
+    <button onclick="location.reload()">重新连线</button>
+  </body>
+</html>

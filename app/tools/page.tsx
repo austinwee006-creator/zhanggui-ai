@@ -1,6 +1,9 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { hasConfiguredRestaurantProfile, loadRestaurantProfile } from "../lib/restaurantProfile";
+import Link from "next/link";
+import { useLanguage } from "../components/LanguageProvider";
 
 type Tool = "menu" | "whatsapp" | "video" | "adimage";
 
@@ -29,7 +32,7 @@ type VideoInputs = {
 };
 
 const TOOLS: { id: Tool; label: string }[] = [
-  { id: "menu", label: "菜单文案" },
+  { id: "menu", label: "产品文案" },
   { id: "whatsapp", label: "WhatsApp 回复" },
   { id: "video", label: "短视频脚本" },
   { id: "adimage", label: "广告图片" },
@@ -203,6 +206,8 @@ function CopyButton({ text }: { text: string }) {
 }
 
 export default function ToolsPage() {
+  const { language } = useLanguage();
+  const [profile] = useState(() => loadRestaurantProfile());
   const [activeTool, setActiveTool] = useState<Tool>("menu");
   const [loading, setLoading] = useState(false);
   const [output, setOutput] = useState("");
@@ -219,14 +224,18 @@ export default function ToolsPage() {
 
   const [waInputs, setWaInputs] = useState<WhatsAppInputs>({
     customerMessage: "",
-    context: "预订查询",
-    restaurantName: "Dinner World",
-    restaurantInfo: "",
+    context: "下单/预订查询",
+    restaurantName: profile.name,
+    restaurantInfo: [
+      profile.cuisine.trim(),
+      profile.hours.trim() ? `营业时间：${profile.hours.trim()}` : "",
+      profile.signature.trim() ? `主推产品/服务：${profile.signature.trim()}` : "",
+    ].filter(Boolean).join("；"),
     language: "繁体中文",
   });
 
   const [videoInputs, setVideoInputs] = useState<VideoInputs>({
-    restaurantName: "Dinner World",
+    restaurantName: profile.name,
     topic: "",
     platform: "TikTok",
     duration: "30秒",
@@ -235,11 +244,19 @@ export default function ToolsPage() {
 
   const [adImageFile, setAdImageFile] = useState<File | null>(null);
   const [adImagePreview, setAdImagePreview] = useState<string>("");
-  const [adImageStyle, setAdImageStyle] = useState("餐厅宣传");
+  const [adImageStyle, setAdImageStyle] = useState("品牌宣传");
   const [adImageBg, setAdImageBg] = useState("木纹桌面");
   const [generatedImageUrl, setGeneratedImageUrl] = useState("");
   const [adImageLoading, setAdImageLoading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (language !== "en") return;
+    const timer = window.setTimeout(() => {
+      setMenuInputs((prev) => prev.language === "繁体中文" ? { ...prev, language: "English" } : prev);
+      setWaInputs((prev) => prev.language === "繁体中文" ? { ...prev, language: "English" } : prev);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [language]);
 
   const handleReset = () => {
     setOutput("");
@@ -320,6 +337,10 @@ export default function ToolsPage() {
         : activeTool === "whatsapp"
         ? waInputs
         : videoInputs;
+    const localizedInputs =
+      language === "en" && "language" in inputs && inputs.language === "繁体中文"
+        ? { ...inputs, language: "English" }
+        : inputs;
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -328,7 +349,7 @@ export default function ToolsPage() {
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tool: activeTool, inputs }),
+        body: JSON.stringify({ tool: activeTool, inputs: localizedInputs, profile, language }),
         signal: controller.signal,
       });
 
@@ -366,8 +387,8 @@ export default function ToolsPage() {
     <div className="flex flex-col h-full bg-stone-50 dark:bg-[#111110]">
       {/* Header */}
       <div className="px-4 py-3 border-b border-stone-200/70 dark:border-stone-800/70 bg-stone-50/90 dark:bg-[#111110]/90 backdrop-blur-md">
-        <h1 className="text-sm font-semibold text-stone-900 dark:text-stone-100">工具箱</h1>
-        <p className="text-xs text-stone-400 mt-0.5">AI 生成，即改即用</p>
+        <h1 className="text-sm font-semibold text-stone-900 dark:text-stone-100">内容助手</h1>
+        <p className="text-xs text-stone-400 mt-0.5">回复、产品文案、短视频、广告图，即改即用</p>
       </div>
 
       {/* Tab Bar */}
@@ -387,42 +408,55 @@ export default function ToolsPage() {
         ))}
       </div>
 
+      <div className="px-4 py-2.5 border-b border-stone-100 dark:border-stone-800 bg-white/70 dark:bg-stone-900/30">
+        {hasConfiguredRestaurantProfile(profile) ? (
+          <p className="text-xs leading-5 text-stone-500 dark:text-stone-400">
+            已接入 {profile.name} 资料：{profile.signature}
+          </p>
+        ) : (
+          <p className="text-xs leading-5 text-stone-500 dark:text-stone-400">
+            还没填品牌资料，生成内容会比较笼统。
+            <Link href="/settings" className="ml-1 font-medium text-amber-600 dark:text-amber-400">去完善 →</Link>
+          </p>
+        )}
+      </div>
+
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto px-4 py-5 space-y-4">
-        {/* Menu Copywriting Form */}
+        {/* Product Copywriting Form */}
         {activeTool === "menu" && (
           <div className="space-y-4">
             <div>
-              <Label required>菜名</Label>
+              <Label required>产品/菜品名</Label>
               <Input
                 value={menuInputs.dishName}
                 onChange={(v) => setMenuInputs((p) => ({ ...p, dishName: v }))}
-                placeholder="如：梅菜扣肉"
+                placeholder="如：午餐套餐、拿铁、生日蛋糕、活动餐盒"
                 disabled={loading}
               />
             </div>
             <div>
-              <Label>主要食材</Label>
+              <Label>主要卖点/食材</Label>
               <Input
                 value={menuInputs.ingredients}
                 onChange={(v) => setMenuInputs((p) => ({ ...p, ingredients: v }))}
-                placeholder="如：五花肉、梅干菜"
+                placeholder="如：现做、低糖、招牌酱、适合办公室午餐"
                 disabled={loading}
               />
             </div>
             <div>
-              <Label>烹饪方式</Label>
+              <Label>做法/交付方式</Label>
               <Input
                 value={menuInputs.cookingMethod}
                 onChange={(v) => setMenuInputs((p) => ({ ...p, cookingMethod: v }))}
-                placeholder="如：红烧、清蒸、干炒"
+                placeholder="如：现烤、冷藏配送、自取、外送、现场摆台"
                 disabled={loading}
               />
             </div>
             <div>
               <Label>定位风格</Label>
               <PillGroup
-                options={["高端精致", "家常温馨", "网红爆款"]}
+                options={["高端精致", "家常温馨", "网红爆款", "日常高性价比"]}
                 value={menuInputs.style}
                 onChange={(v) => setMenuInputs((p) => ({ ...p, style: v }))}
               />
@@ -454,17 +488,17 @@ export default function ToolsPage() {
             <div>
               <Label>情境</Label>
               <PillGroup
-                options={["预订查询", "菜单查询", "投诉处理", "营业时间", "一般询问"]}
+                options={["下单/预订查询", "菜单/产品查询", "投诉处理", "营业时间", "外送/自取", "一般询问"]}
                 value={waInputs.context}
                 onChange={(v) => setWaInputs((p) => ({ ...p, context: v }))}
               />
             </div>
             <div>
-              <Label>餐厅名称</Label>
+              <Label>品牌/店名</Label>
               <Input
                 value={waInputs.restaurantName}
                 onChange={(v) => setWaInputs((p) => ({ ...p, restaurantName: v }))}
-                placeholder="如：Dinner World"
+                placeholder="如：你的餐饮品牌名称"
                 disabled={loading}
               />
             </div>
@@ -473,7 +507,7 @@ export default function ToolsPage() {
               <Textarea
                 value={waInputs.restaurantInfo}
                 onChange={(v) => setWaInputs((p) => ({ ...p, restaurantInfo: v }))}
-                placeholder="如：营业时间、地址、预订电话等"
+                placeholder="如：营业时间、地址、外送范围、取餐方式、订金规则等"
                 rows={2}
                 disabled={loading}
               />
@@ -497,16 +531,16 @@ export default function ToolsPage() {
               <Input
                 value={videoInputs.topic}
                 onChange={(v) => setVideoInputs((p) => ({ ...p, topic: v }))}
-                placeholder="如：招牌脆皮烧鸭、宴席开桌流程"
+                placeholder="如：午市套餐、咖啡新品、蛋糕制作过程、活动餐盒"
                 disabled={loading}
               />
             </div>
             <div>
-              <Label>餐厅 / 品牌名称</Label>
+              <Label>品牌/店名</Label>
               <Input
                 value={videoInputs.restaurantName}
                 onChange={(v) => setVideoInputs((p) => ({ ...p, restaurantName: v }))}
-                placeholder="如：Dinner World"
+                placeholder="如：你的餐饮品牌名称"
                 disabled={loading}
               />
             </div>
@@ -529,7 +563,7 @@ export default function ToolsPage() {
             <div>
               <Label>风格</Label>
               <PillGroup
-                options={["美食特写", "ASMR", "探店 vlog", "幕后揭秘"]}
+                options={["美食特写", "ASMR", "探店 vlog", "幕后揭秘", "老板出镜"]}
                 value={videoInputs.style}
                 onChange={(v) => setVideoInputs((p) => ({ ...p, style: v }))}
               />
@@ -541,17 +575,17 @@ export default function ToolsPage() {
         {activeTool === "adimage" && (
           <div className="space-y-4">
             <div>
-              <Label required>上传菜肴照片</Label>
+              <Label required>上传产品照片</Label>
               <input
-                ref={fileInputRef}
+                id="ad-file-input"
                 type="file"
                 accept="image/*"
-                className="hidden"
+                style={{ position: "fixed", left: "-9999px", top: "-9999px" }}
                 onChange={(e) => { if (e.target.files?.[0]) handleFileChange(e.target.files[0]); }}
               />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className={`w-full rounded-2xl border-2 border-dashed transition-colors flex flex-col items-center justify-center py-6 gap-2 ${
+              <label
+                htmlFor="ad-file-input"
+                className={`w-full rounded-2xl border-2 border-dashed transition-colors flex flex-col items-center justify-center py-6 gap-2 cursor-pointer ${
                   adImagePreview
                     ? "border-amber-300 dark:border-amber-600/50"
                     : "border-stone-200 dark:border-stone-700 hover:border-amber-300"
@@ -568,7 +602,7 @@ export default function ToolsPage() {
                     <span className="text-xs text-stone-300">JPG / PNG / HEIC</span>
                   </>
                 )}
-              </button>
+              </label>
               {adImagePreview && (
                 <button
                   onClick={() => { setAdImageFile(null); setAdImagePreview(""); setGeneratedImageUrl(""); }}
@@ -582,7 +616,7 @@ export default function ToolsPage() {
             <div>
               <Label>广告风格</Label>
               <PillGroup
-                options={["餐厅宣传", "社媒风格", "高端精品", "简洁清新"]}
+                options={["品牌宣传", "社媒风格", "高端精品", "简洁清新"]}
                 value={adImageStyle}
                 onChange={setAdImageStyle}
               />

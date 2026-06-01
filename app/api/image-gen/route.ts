@@ -1,46 +1,16 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-import Anthropic from "@anthropic-ai/sdk";
-import OpenAI from "openai";
+import OpenAI, { toFile } from "openai";
 
 export async function POST(request: Request) {
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
   try {
     const { imageBase64, mimeType, style, background } = await request.json();
 
-    const analysis = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 512,
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "image",
-              source: { type: "base64", media_type: mimeType, data: imageBase64 },
-            },
-            {
-              type: "text",
-              text: `Analyze this food photo and describe it precisely for a DALL-E 3 food advertising prompt. Include:
-- Dish name and main ingredients
-- Colors, textures, and presentation style
-- Key visual elements
-
-Respond in English only, 2-3 sentences max.`,
-            },
-          ],
-        },
-      ],
-    });
-
-    const dishDescription = (analysis.content[0] as { type: string; text: string }).text;
-
-    // Step 2: Build DALL-E 3 prompt
     const styleMap: Record<string, string> = {
-      "餐厅宣传": "warm restaurant ambiance lighting, cozy dining atmosphere",
+      "品牌宣传": "professional food brand campaign lighting, appetizing commercial atmosphere",
       "社媒风格": "trendy flat lay composition, vibrant colors, Instagram-worthy",
       "高端精品": "fine dining presentation, elegant plating, dramatic studio lighting",
       "简洁清新": "minimal clean composition, natural daylight, fresh aesthetic",
@@ -53,23 +23,28 @@ Respond in English only, 2-3 sentences max.`,
       "白色背景": "pure white background, clean studio look",
     };
 
-    const styleDesc = styleMap[style] || styleMap["餐厅宣传"];
+    const styleDesc = styleMap[style] || styleMap["品牌宣传"];
     const bgDesc = backgroundMap[background] || backgroundMap["木纹桌面"];
 
-    const dallePrompt = `Professional food advertisement photography: ${dishDescription} ${styleDesc}, ${bgDesc}, appetizing and mouth-watering, commercial food photography quality, sharp focus, highly detailed, 4K resolution. Shot for a restaurant menu or social media promotion.`;
+    const imageBuffer = Buffer.from(imageBase64, "base64");
+    const imageFile = await toFile(imageBuffer, "food.jpg", { type: mimeType });
 
-    // Step 3: Generate with DALL-E 3
-    const imageResponse = await openai.images.generate({
-      model: "dall-e-3",
-      prompt: dallePrompt,
-      size: "1024x1024",
-      quality: "standard",
+    const prompt = `Enhance this food or beverage product photo into a professional food brand advertisement image. Keep the exact same product, ingredients, and portion visible. Improve: professional studio lighting, refined presentation, ${styleDesc}, ${bgDesc}. Make it look highly appetizing and commercially attractive for a menu, delivery platform, or social media campaign. Photorealistic style.`;
+
+    const response = await openai.images.edit({
+      model: "gpt-image-1",
+      image: imageFile,
+      prompt,
       n: 1,
+      size: "1024x1024",
     });
 
-    const imageUrl = imageResponse.data?.[0]?.url;
+    const b64 = response.data?.[0]?.b64_json;
+    const imageUrl = b64
+      ? `data:image/png;base64,${b64}`
+      : response.data?.[0]?.url;
 
-    return Response.json({ imageUrl, dishDescription });
+    return Response.json({ imageUrl });
   } catch (error) {
     console.error("Image gen error:", error);
     return Response.json({ error: "生成失败，请重试" }, { status: 500 });

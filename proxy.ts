@@ -8,10 +8,20 @@ export function proxy(request: NextRequest) {
     pathname.startsWith("/login") ||
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/_next") ||
-    pathname === "/favicon.ico"
+    pathname === "/favicon.ico" ||
+    // PWA 资产必须可匿名存取，否则安装/离线会坏
+    pathname === "/manifest.json" ||
+    pathname === "/sw.js" ||
+    pathname === "/offline.html" ||
+    pathname === "/apple-touch-icon.png" ||
+    pathname === "/icon-192.png" ||
+    pathname === "/icon-512.png"
   ) {
     return NextResponse.next();
   }
+
+  // Supabase 登入帐号 / demo 一键进入：凭 gate cookie 放行（资料由 Supabase RLS 保护）
+  if (request.cookies.get("zg_gate")?.value) return NextResponse.next();
 
   const password = process.env.ACCESS_PASSWORD;
   if (!password) return NextResponse.next();

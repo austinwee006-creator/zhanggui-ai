@@ -1,0 +1,33 @@
+{
+  "name": "掌柜 AI / Zhanggui AI",
+  "short_name": "掌柜 AI",
+  "description": "餐厅老板的 AI 生意助手：接单、客户、账目、库存、排班一站搞定",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#111110",
+  "theme_color": "#f59e0b",
+  "lang": "zh-Hant",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["business", "productivity", "food"]
+}

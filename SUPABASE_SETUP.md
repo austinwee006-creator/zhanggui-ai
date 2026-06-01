@@ -1,0 +1,65 @@
+# 掌柜 AI — 接上云端（Supabase）设置指南
+
+接好后：任何餐厅老板都能注册自己的帐号，资料存云端，换手机/电脑/系统登入同一帐号都看到同一份资料。
+**没接 Supabase 时 App 仍可运行**（纯本地 + demo 一键进入），所以你可以随时再接。
+
+---
+
+## 一、建立 Supabase 项目（约 3 分钟）
+
+1. 打开 https://supabase.com → 用 GitHub 登入 → **New project**
+2. 项目名随意（如 `zhanggui-ai`），选最近的区域（新加坡 `Southeast Asia`），设一个数据库密码
+3. 等项目建好（约 1–2 分钟）
+
+## 二、建立资料表（贴 SQL 执行）
+
+1. 左侧 **SQL Editor** → **New query**
+2. 把 `supabase/schema.sql` 整个文件内容贴进去 → **Run**
+3. 看到成功即可（脚本可重复执行，不会重复建表）
+
+## 三、拿到金钥
+
+左侧 **Project Settings → API**，复制两个值：
+- **Project URL** → 填到 `NEXT_PUBLIC_SUPABASE_URL`
+- **anon public** key → 填到 `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+> anon key 是公开金钥，放前端是安全的——真正的资料隔离靠资料表上的 RLS（已在 SQL 里设好）。
+
+## 四、填环境变量
+
+**本地**：在 `app/.env.local` 加上：
+
+```
+NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGci...
+```
+
+**Vercel**：项目 → Settings → Environment Variables，加同样两个变量（Production + Preview），然后 Redeploy。
+
+## 五、（建议）关掉邮箱验证，让注册即用
+
+Supabase 控制台 → **Authentication → Providers → Email** →
+关掉 **Confirm email**（开发/早期阶段）。这样老板注册后立即进入，不必等确认信。
+之后要正式上线再打开，体验更安全。
+
+---
+
+## 验证是否成功
+
+1. `npm run dev` 打开 App → 登入页应出现「登入 / 注册」切换 + 邮箱密码栏
+2. 注册一个测试帐号 → 进入后随便加一笔订单
+3. 换一个浏览器（或手机）登入同一帐号 → 应看到刚才那笔订单
+4. Supabase 控制台 → **Table Editor → data_documents** → 应看到对应的资料行
+
+## 运作原理（简述）
+
+- 每个登入帐号 = 一个 `tenant`（一家餐厅）。资料按 `tenant_id` 用 RLS 隔离，彼此看不到对方。
+- App 仍先写本地 `localStorage`（所以离线也能用、瞬时），再防抖同步到云端。
+- 登入时云端资料会覆盖本地（精确镜像），确保换设备看到的是同一份、且不会残留上一个帐号的资料。
+- 想把现有本机资料搬上云：登入后到 **设置 → 帐号 → 上传本机资料到云端**。
+
+## 后续可强化（非必须）
+
+- 用 `@supabase/ssr` 在 `proxy.ts` 校验 Supabase session cookie，取代目前的 gate cookie（更严谨的外壳保护）。
+- 邀请员工共用一家餐厅：把员工 `profiles.tenant_id` 设成老板的 id。
+- 资料表从「整包 JSON」拆成正规化表（要做跨租户报表统计时再做）。
