@@ -8,6 +8,7 @@ import {
   legacyOrderRecordStorageKey,
   operationTaskStorageKey,
   orderRecordStorageKey,
+  posImportStorageKey,
   staffShiftStorageKey,
   supplierPurchaseRecordStorageKey,
   supplierRecordStorageKey,
@@ -29,6 +30,7 @@ export const backupDataItems = [
   { key: bookingRecordStorageKey, label: "预订" },
   { key: supplierRecordStorageKey, label: "供应商" },
   { key: supplierPurchaseRecordStorageKey, label: "采购/欠款" },
+  { key: posImportStorageKey, label: "POS 导入" },
   { key: languageStorageKey, label: "语言" },
 ] as const;
 

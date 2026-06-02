@@ -53,6 +53,7 @@ const quickLinks = [
   { href: "/calendar", title: "预订日历", desc: "看未来档期、撞单、订金和负责人" },
   { href: "/customers", title: "客户跟进", desc: "老客回访、VIP、沉睡客唤醒" },
   { href: "/cashbook", title: "每日结算", desc: "记录营业额、支出、现金差额" },
+  { href: "/pos", title: "POS 导入", desc: "导入 POS 日报，自动写入每日结算" },
   { href: "/inventory", title: "库存采购", desc: "管缺货、快过期、供应商和采购单" },
   { href: "/operations", title: "营运 SOP", desc: "开店、午市、晚市、关店检查清单" },
   { href: "/suppliers", title: "供应商账款", desc: "看欠款、到期付款、采购清单" },

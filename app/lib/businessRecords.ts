@@ -10,6 +10,7 @@ export const bookingRecordStorageKey = "zg_booking_records_v1";
 export const supplierRecordStorageKey = "zg_supplier_records_v1";
 export const supplierPurchaseRecordStorageKey = "zg_supplier_purchase_records_v1";
 export const operationTaskStorageKey = "zg_operation_task_records_v1";
+export const posImportStorageKey = "zg_pos_import_records_v1";
 
 export const orderTypeOptions = ["堂食预订", "外卖/自取", "活动餐饮", "团体订单", "甜品/蛋糕预订", "一般询问"];
 export const channelOptions = ["WhatsApp", "电话", "Instagram", "Facebook", "Walk-in", "外卖平台", "转介绍"];
@@ -162,6 +163,22 @@ export type OperationTaskRecord = {
   title: string;
   owner: string;
   status: string;
+  notes: string;
+  createdAt: string;
+};
+
+export type PosImportRecord = {
+  id: string;
+  date: string;
+  sourceName: string;
+  rawText: string;
+  cashSales: string;
+  qrSales: string;
+  cardSales: string;
+  platformSales: string;
+  otherSales: string;
+  platformFees: string;
+  orderCount: string;
   notes: string;
   createdAt: string;
 };
@@ -390,6 +407,28 @@ export function loadOperationTaskRecords(): OperationTaskRecord[] {
 
 export function saveOperationTaskRecords(records: OperationTaskRecord[]) {
   writeJson(operationTaskStorageKey, records);
+}
+
+export function loadPosImportRecords(): PosImportRecord[] {
+  return readJson<Partial<PosImportRecord>[]>(posImportStorageKey, []).map((record) => ({
+    id: record.id || String(Date.now()),
+    date: record.date || new Date().toISOString().slice(0, 10),
+    sourceName: record.sourceName || "POS",
+    rawText: record.rawText || "",
+    cashSales: record.cashSales || "0",
+    qrSales: record.qrSales || "0",
+    cardSales: record.cardSales || "0",
+    platformSales: record.platformSales || "0",
+    otherSales: record.otherSales || "0",
+    platformFees: record.platformFees || "0",
+    orderCount: record.orderCount || "0",
+    notes: record.notes || "",
+    createdAt: record.createdAt || new Date().toISOString(),
+  }));
+}
+
+export function savePosImportRecords(records: PosImportRecord[]) {
+  writeJson(posImportStorageKey, records);
 }
 
 export function isOperationTaskDone(record: OperationTaskRecord) {

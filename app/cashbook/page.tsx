@@ -202,8 +202,15 @@ export default function CashbookPage() {
   return (
     <div className="h-full overflow-y-auto bg-stone-50 dark:bg-[#111110]">
       <header className="sticky top-0 z-10 border-b border-stone-200/70 bg-stone-50/90 px-4 py-3 backdrop-blur-md dark:border-stone-800/70 dark:bg-[#111110]/90">
-        <h1 className="text-base font-semibold text-stone-900 dark:text-stone-100">每日结算</h1>
-        <p className="mt-0.5 text-xs text-stone-400">记录营业额、支出、现金差额和经营风险</p>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h1 className="text-base font-semibold text-stone-900 dark:text-stone-100">每日结算</h1>
+            <p className="mt-0.5 text-xs text-stone-400">记录营业额、支出、现金差额和经营风险</p>
+          </div>
+          <Link href="/pos" className="rounded-xl border border-stone-200 px-3 py-1.5 text-xs font-medium text-stone-500 dark:border-stone-700 dark:text-stone-300">
+            POS 导入
+          </Link>
+        </div>
       </header>
 
       <main className="space-y-5 px-4 py-5">

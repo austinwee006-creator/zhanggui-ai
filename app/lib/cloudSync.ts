@@ -14,6 +14,7 @@ export const SYNC_KEYS = [
   "zg_supplier_records_v1",
   "zg_supplier_purchase_records_v1",
   "zg_operation_task_records_v1",
+  "zg_pos_import_records_v1",
   "zg_restaurant_profile_v2",
 ] as const;
 
