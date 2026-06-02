@@ -1,15 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { getSupabase, isCloudEnabled } from "../lib/supabaseClient";
 import { clearLocalBusinessData, hydrateFromCloud, resetTenantCache } from "../lib/cloudSync";
 
 // 在渲染受保护页面前，先把云端资料同步到本地（让页面 useState 读到最新资料）。
-// 未配置 Supabase 或未登入时立即渲染（纯本地/demo 模式）。
+// 登入页不 gate（无需同步）；未配置 Supabase 或未登入时立即渲染（纯本地/demo 模式）。
 export default function CloudSyncGate({ children }: { children: React.ReactNode }) {
-  const [ready, setReady] = useState(() => !isCloudEnabled());
+  const pathname = usePathname();
+  const isLogin = pathname === "/login";
+  const [ready, setReady] = useState(() => isLogin || !isCloudEnabled());
 
   useEffect(() => {
+    if (isLogin) {
+      setReady(true);
+      return;
+    }
     const sb = getSupabase();
     if (!sb) {
       setReady(true);
@@ -44,7 +51,9 @@ export default function CloudSyncGate({ children }: { children: React.ReactNode 
       clearTimeout(fallback);
       sub.subscription.unsubscribe();
     };
-  }, []);
+  }, [isLogin]);
+
+  if (isLogin) return <>{children}</>;
 
   if (!ready) {
     return (
