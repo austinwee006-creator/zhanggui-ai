@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useLanguage } from "../components/LanguageProvider";
 import AccountSection from "../components/AccountSection";
+import PublicReadinessSection from "../components/PublicReadinessSection";
+import type { Language } from "../lib/i18n";
 import {
   backupDataItems,
   clearBusinessData,
@@ -23,6 +25,7 @@ import {
 
 export default function SettingsPage() {
   const { language, setLanguage } = useLanguage();
+  const isEnglish = language === "en";
   const [profile, setProfile] = useState<RestaurantProfile>(defaultRestaurantProfile);
   const [saved, setSaved] = useState(false);
   const [dataVersion, setDataVersion] = useState(0);
@@ -61,7 +64,7 @@ export default function SettingsPage() {
   const exportBackup = () => {
     const payload = createBackupPayload();
     downloadBackupFile(payload);
-    setBackupStatus("已下载备份文件");
+    setBackupStatus(isEnglish ? "Backup downloaded" : "已下载备份文件");
   };
 
   const restoreBackup = async (file?: File) => {
@@ -73,19 +76,19 @@ export default function SettingsPage() {
       restoreBackupPayload(payload);
       setProfile(loadRestaurantProfile());
       setDataVersion((value) => value + 1);
-      setBackupStatus("已恢复备份");
+      setBackupStatus(isEnglish ? "Backup restored" : "已恢复备份");
     } catch {
-      setBackupStatus("备份文件格式不正确");
+      setBackupStatus(isEnglish ? "Invalid backup file" : "备份文件格式不正确");
     }
   };
 
   const clearData = () => {
-    if (!window.confirm("确定清空这台设备的业务数据？请先下载备份。")) return;
+    if (!window.confirm(isEnglish ? "Clear business data on this device? Download a backup first." : "确定清空这台设备的业务数据？请先下载备份。")) return;
 
     clearBusinessData();
     setProfile(defaultRestaurantProfile);
     setDataVersion((value) => value + 1);
-    setBackupStatus("已清空业务数据");
+    setBackupStatus(isEnglish ? "Business data cleared" : "已清空业务数据");
   };
 
   return (
@@ -97,13 +100,16 @@ export default function SettingsPage() {
 
       <main className="px-4 py-5 space-y-5">
         <AccountSection />
+        <PublicReadinessSection profile={profile} language={language} dataVersion={dataVersion} />
 
         <section data-version={dataVersion} className="rounded-2xl bg-white dark:bg-stone-900/60 border border-stone-200/70 dark:border-stone-800 p-4">
-          <h2 className="text-sm font-semibold text-stone-900 dark:text-stone-100">语言 / Language</h2>
-          <p className="mt-1 text-xs leading-5 text-stone-400">切换后会套用到整个 app，并保存在这台设备。</p>
+          <h2 className="text-sm font-semibold text-stone-900 dark:text-stone-100">{isEnglish ? "Language" : "语言 / Language"}</h2>
+          <p className="mt-1 text-xs leading-5 text-stone-400">
+            {isEnglish ? "This applies to the whole app and is saved on this device." : "切换后会套用到整个 app，并保存在这台设备。"}
+          </p>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <button onClick={() => setLanguage("zh")} className={`rounded-xl px-3 py-2.5 text-sm font-semibold ${language === "zh" ? "bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-950" : "border border-stone-200 text-stone-500 dark:border-stone-700 dark:text-stone-400"}`}>
-              中文
+              {isEnglish ? "Chinese" : "中文"}
             </button>
             <button onClick={() => setLanguage("en")} className={`rounded-xl px-3 py-2.5 text-sm font-semibold ${language === "en" ? "bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-950" : "border border-stone-200 text-stone-500 dark:border-stone-700 dark:text-stone-400"}`}>
               English
@@ -114,9 +120,11 @@ export default function SettingsPage() {
         <section className="rounded-2xl bg-white dark:bg-stone-900/60 border border-stone-200/70 dark:border-stone-800 p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-sm font-semibold text-stone-900 dark:text-stone-100">数据备份</h2>
+              <h2 className="text-sm font-semibold text-stone-900 dark:text-stone-100">{isEnglish ? "Data Backup" : "数据备份"}</h2>
               <p className="mt-1 text-xs leading-5 text-stone-400">
-                已登入云端帐号时会自动同步。demo / 本机模式只存在当前浏览器，换设备或清浏览器前一定要先备份。
+                {isEnglish
+                  ? "Cloud accounts sync automatically. Demo / local mode only stays in the current browser, so download a backup before changing devices or clearing browser data."
+                  : "已登入云端帐号时会自动同步。demo / 本机模式只存在当前浏览器，换设备或清浏览器前一定要先备份。"}
               </p>
             </div>
             {backupStatus && (
@@ -129,7 +137,7 @@ export default function SettingsPage() {
           <div className="mt-3 grid grid-cols-3 gap-2">
             {dataCounts.map((item) => (
               <div key={item.key} className="rounded-xl bg-stone-100 px-3 py-2 dark:bg-stone-950">
-                <p className="truncate text-[11px] text-stone-400">{item.label}</p>
+                <p className="truncate text-[11px] text-stone-400">{displayBackupLabel(item.label, language)}</p>
                 <p className="mt-0.5 text-sm font-semibold text-stone-900 dark:text-stone-100">{item.count}</p>
               </div>
             ))}
@@ -137,10 +145,10 @@ export default function SettingsPage() {
 
           <div className="mt-4 grid grid-cols-3 gap-2">
             <button onClick={exportBackup} className="rounded-xl bg-stone-900 px-3 py-2.5 text-xs font-semibold text-white dark:bg-stone-100 dark:text-stone-950">
-              下载备份
+              {isEnglish ? "Download Backup" : "下载备份"}
             </button>
             <label className="cursor-pointer rounded-xl border border-stone-200 px-3 py-2.5 text-center text-xs font-semibold text-stone-600 dark:border-stone-700 dark:text-stone-300">
-              导入恢复
+              {isEnglish ? "Restore Backup" : "导入恢复"}
               <input
                 type="file"
                 accept="application/json,.json"
@@ -152,7 +160,7 @@ export default function SettingsPage() {
               />
             </label>
             <button onClick={clearData} className="rounded-xl border border-red-100 px-3 py-2.5 text-xs font-semibold text-red-500 dark:border-red-900/60 dark:text-red-300">
-              清空业务数据
+              {isEnglish ? "Clear Business Data" : "清空业务数据"}
             </button>
           </div>
         </section>
@@ -197,6 +205,27 @@ export default function SettingsPage() {
       </div>
     </div>
   );
+}
+
+const backupLabelTranslations: Record<string, string> = {
+  品牌资料: "Brand Profile",
+  订单: "Orders",
+  旧订单备份: "Old Order Backup",
+  客户: "Customers",
+  结算: "Closing",
+  库存: "Inventory",
+  员工: "Staff",
+  营运任务: "Operations Tasks",
+  预订: "Bookings",
+  供应商: "Suppliers",
+  "采购/欠款": "Purchases/Payables",
+  "POS 导入": "POS Import",
+  语言: "Language",
+};
+
+function displayBackupLabel(label: string, language: Language) {
+  if (language === "zh") return label;
+  return backupLabelTranslations[label] || label;
 }
 
 function Field({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string }) {
