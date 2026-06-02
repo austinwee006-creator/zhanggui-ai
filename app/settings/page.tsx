@@ -116,7 +116,7 @@ export default function SettingsPage() {
             <div>
               <h2 className="text-sm font-semibold text-stone-900 dark:text-stone-100">数据备份</h2>
               <p className="mt-1 text-xs leading-5 text-stone-400">
-                这个 app 目前使用本地保存，老板换设备或清浏览器前一定要先备份。
+                已登入云端帐号时会自动同步。demo / 本机模式只存在当前浏览器，换设备或清浏览器前一定要先备份。
               </p>
             </div>
             {backupStatus && (

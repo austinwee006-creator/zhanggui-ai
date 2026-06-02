@@ -22,6 +22,11 @@ const SYNC_KEY_SET = new Set<string>(SYNC_KEYS);
 let tenantIdCache: string | null = null;
 const pushTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
+function cancelPendingPushes() {
+  for (const timer of pushTimers.values()) clearTimeout(timer);
+  pushTimers.clear();
+}
+
 // 取得当前帐号的 tenant_id；profile 不存在时补建（客户端安全网，trigger 也会建）。
 async function getTenantId(): Promise<string | null> {
   if (tenantIdCache) return tenantIdCache;
@@ -113,6 +118,7 @@ export function pushDocument(key: string, value: unknown) {
 // 登出：清掉本地业务资料，避免下一个登入者看到上一个人的资料。
 export function clearLocalBusinessData() {
   if (typeof window === "undefined") return;
+  cancelPendingPushes();
   for (const key of SYNC_KEYS) {
     try {
       localStorage.removeItem(key);
@@ -121,6 +127,22 @@ export function clearLocalBusinessData() {
     }
   }
   resetTenantCache();
+}
+
+// 清除当前帐号的云端业务资料，并同步清空本机镜像。
+// 不删除 auth 帐号本身，避免客户误删后无法登入；真正删帐号需服务端 admin API。
+export async function clearCloudBusinessData(): Promise<boolean> {
+  const sb = getSupabase();
+  if (!sb || typeof window === "undefined") return false;
+  const tenantId = await getTenantId();
+  if (!tenantId) return false;
+
+  cancelPendingPushes();
+  const { error } = await sb.from("data_documents").delete().eq("tenant_id", tenantId);
+  if (error) return false;
+
+  clearLocalBusinessData();
+  return true;
 }
 
 // 手动把目前本机资料整批上传到云端（给「把现有资料搬上云」的场景用）。

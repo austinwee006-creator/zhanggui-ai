@@ -42,6 +42,17 @@ Supabase 控制台 → **Authentication → Providers → Email** →
 关掉 **Confirm email**（开发/早期阶段）。这样老板注册后立即进入，不必等确认信。
 之后要正式上线再打开，体验更安全。
 
+## 六、设置重设密码跳转
+
+Supabase 控制台 → **Authentication → URL Configuration**：
+
+- **Site URL**：填线上网址，例如 `https://app-tan-ten-65.vercel.app`
+- **Redirect URLs**：至少加入：
+  - `https://app-tan-ten-65.vercel.app/login?reset=1`
+  - `http://localhost:3000/login?reset=1`
+
+这样客户点「忘记密码」收到邮件后，会回到掌柜 AI 的「设置新密码」页面；换电脑、换系统、忘记密码时都能自助处理。
+
 ---
 
 ## 验证是否成功
@@ -50,6 +61,7 @@ Supabase 控制台 → **Authentication → Providers → Email** →
 2. 注册一个测试帐号 → 进入后随便加一笔订单
 3. 换一个浏览器（或手机）登入同一帐号 → 应看到刚才那笔订单
 4. Supabase 控制台 → **Table Editor → data_documents** → 应看到对应的资料行
+5. 在登入页点「忘记密码？」→ 输入邮箱 → 收到邮件后应能回到 `/login?reset=1` 设置新密码
 
 ## 运作原理（简述）
 
@@ -57,6 +69,7 @@ Supabase 控制台 → **Authentication → Providers → Email** →
 - App 仍先写本地 `localStorage`（所以离线也能用、瞬时），再防抖同步到云端。
 - 登入时云端资料会覆盖本地（精确镜像），确保换设备看到的是同一份、且不会残留上一个帐号的资料。
 - 想把现有本机资料搬上云：登入后到 **设置 → 帐号 → 上传本机资料到云端**。
+- 客户要清空测试资料或结束使用：先到 **设置 → 数据备份 → 下载备份**，再到 **设置 → 帐号 → 清除云端业务资料**。这个操作会删除云端和本机业务资料，但不会删除登入帐号本身。
 
 ## 后续可强化（非必须）
 

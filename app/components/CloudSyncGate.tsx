@@ -13,15 +13,9 @@ export default function CloudSyncGate({ children }: { children: React.ReactNode 
   const [ready, setReady] = useState(() => isLogin || !isCloudEnabled());
 
   useEffect(() => {
-    if (isLogin) {
-      setReady(true);
-      return;
-    }
+    if (isLogin) return;
     const sb = getSupabase();
-    if (!sb) {
-      setReady(true);
-      return;
-    }
+    if (!sb) return;
 
     let cancelled = false;
     // 兜底：hydrate 卡住也不要白屏超过 4 秒
