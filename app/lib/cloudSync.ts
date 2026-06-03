@@ -1,6 +1,7 @@
 "use client";
 
 import { getSupabase } from "./supabaseClient";
+import { posConnectionSettingsStorageKey } from "./posConnection";
 
 // 需要在云端同步的业务资料 key（语言偏好等纯 UI 设定不同步）。
 // 与 businessRecords.ts / restaurantProfile.ts 的 storageKey 保持一致。
@@ -15,6 +16,7 @@ export const SYNC_KEYS = [
   "zg_supplier_purchase_records_v1",
   "zg_operation_task_records_v1",
   "zg_pos_import_records_v1",
+  posConnectionSettingsStorageKey,
   "zg_restaurant_profile_v2",
 ] as const;
 

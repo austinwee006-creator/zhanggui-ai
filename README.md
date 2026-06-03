@@ -60,7 +60,7 @@ Vercel 项目需要配置这些环境变量：
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
-- `POS_INGEST_TOKEN`
+- `POS_INGEST_TOKEN`（可选，只给内部后台兼容测试；客户 POS 接入请在 `/pos` 生成店铺密钥）
 
 配置后重新部署。生产构建命令：
 
@@ -77,7 +77,7 @@ npm run build
 3. 「忘记密码？」能发送邮件，并回到 `/login?reset=1` 设置新密码。
 4. demo 模式不会污染正式帐号资料。
 5. `/pos` 能导入 POS CSV / 文字日报，并写入每日结算。
-6. 实体 POS / Make / Zapier 可用 `POST /api/pos/ingest` 写入 POS 日结；请求必须带 `x-zg-pos-token`，payload 需包含 `tenantEmail` 或 `tenantId`。
+6. 实体 POS / Make / Zapier 可用 `POST /api/pos/ingest` 写入 POS 日结；每家店必须先在 `/pos` 生成自己的 `x-zg-pos-token`。
 7. 设置页能下载备份、上传本机资料到云端、清除云端业务资料。
 8. `npm run lint` 没有 error。
 9. `npm run build` 通过。
@@ -93,9 +93,8 @@ npm run build
 ```bash
 curl -X POST https://app-tan-ten-65.vercel.app/api/pos/ingest \
   -H "Content-Type: application/json" \
-  -H "x-zg-pos-token: <POS_INGEST_TOKEN>" \
+  -H "x-zg-pos-token: <restaurant-pos-token>" \
   -d '{
-    "tenantEmail": "owner@example.com",
     "date": "2026-06-02",
     "sourceName": "StoreHub POS",
     "cashSales": 1280.5,
@@ -103,11 +102,12 @@ curl -X POST https://app-tan-ten-65.vercel.app/api/pos/ingest \
     "cardSales": 420,
     "platformSales": 560,
     "platformFees": 72,
-    "orderCount": 86
+    "orderCount": 86,
+    "externalId": "receipt-batch-2026-06-02"
   }'
 ```
 
-API 会更新该餐厅云端的 `POS 导入` 和 `每日结算`。`SUPABASE_SERVICE_ROLE_KEY` 只能放在服务端环境变量，不能暴露给浏览器或客户。
+老板在 `/pos` 生成店铺 POS 密钥后，系统只保存该密钥的 hash；完整 token 只显示一次。POS 厂商调用时不需要知道客户 email 或 tenantId，API 会按 token 自动写入对应餐厅的 `POS 导入` 和 `每日结算`。`SUPABASE_SERVICE_ROLE_KEY` 只能放在服务端环境变量，不能暴露给浏览器或客户。
 
 可用 `GET /api/pos/ingest` 检查自动接入是否已配置；返回 `configured: true` 才代表 webhook 可以正式写入云端。
 

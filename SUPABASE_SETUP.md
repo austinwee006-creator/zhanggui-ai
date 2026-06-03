@@ -34,7 +34,7 @@
 NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGci...
 SUPABASE_SERVICE_ROLE_KEY=eyJhbGci...
-POS_INGEST_TOKEN=自己生成一串长随机字串
+POS_INGEST_TOKEN=可选；只给内部后台兼容测试
 ```
 
 **Vercel**：项目 → Settings → Environment Variables，加上同样环境变量（Production + Preview），然后 Redeploy。
@@ -81,9 +81,8 @@ Supabase 控制台 → **Authentication → URL Configuration**：
 ```bash
 curl -X POST https://app-tan-ten-65.vercel.app/api/pos/ingest \
   -H "Content-Type: application/json" \
-  -H "x-zg-pos-token: <POS_INGEST_TOKEN>" \
+  -H "x-zg-pos-token: <restaurant-pos-token>" \
   -d '{
-    "tenantEmail": "owner@example.com",
     "date": "2026-06-02",
     "sourceName": "POS",
     "cashSales": 1280.5,
@@ -91,11 +90,12 @@ curl -X POST https://app-tan-ten-65.vercel.app/api/pos/ingest \
     "cardSales": 420,
     "platformSales": 560,
     "platformFees": 72,
-    "orderCount": 86
+    "orderCount": 86,
+    "externalId": "receipt-batch-2026-06-02"
   }'
 ```
 
-也可以发送 `reportText`，系统会按 CSV / 文字日报规则尝试识别金额。接口会同时更新云端 `POS 导入` 和 `每日结算`。如果 POS 厂商要做正式双向 API，需要向该 POS 厂商申请 API key / webhook 权限后再做品牌适配。
+正式给客户接 POS 时，先让老板用云端账号登入 `/pos`，点击「生成密钥」，把页面显示的一次性完整 token 交给 POS 厂商 / Make / Zapier。系统只保存 token hash，POS 厂商不需要知道客户 email 或 tenantId。也可以发送 `reportText`，系统会按 CSV / 文字日报规则尝试识别金额。接口会同时更新云端 `POS 导入` 和 `每日结算`。如果 POS 厂商要做正式双向 API，需要向该 POS 厂商申请 API key / webhook 权限后再做品牌适配。
 
 ## 后续可强化（非必须）
 

@@ -1,5 +1,7 @@
+import { createHash, timingSafeEqual } from "crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { hasActivePosToken, normalizePosConnectionSettings, posConnectionSettingsStorageKey } from "../../../lib/posConnection";
 import {
   buildPosImportRecord,
   dailyClosingStorageKey,
@@ -20,26 +22,33 @@ type DataDocumentRow = {
   payload: unknown;
 };
 
+type PosSettingsDocumentRow = {
+  tenant_id: string;
+  payload: unknown;
+};
+
 export async function GET() {
   return NextResponse.json({
-    configured: Boolean(process.env.POS_INGEST_TOKEN && process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.NEXT_PUBLIC_SUPABASE_URL),
+    configured: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.NEXT_PUBLIC_SUPABASE_URL),
+    tenantTokens: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.NEXT_PUBLIC_SUPABASE_URL),
+    legacyTokenConfigured: Boolean(process.env.POS_INGEST_TOKEN),
   });
 }
 
 export async function POST(request: Request) {
-  const expectedToken = process.env.POS_INGEST_TOKEN;
+  const legacyToken = process.env.POS_INGEST_TOKEN;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
-  if (!expectedToken || !serviceRoleKey || !supabaseUrl) {
+  if (!serviceRoleKey || !supabaseUrl) {
     return NextResponse.json(
-      { error: "POS ingest is not configured. Set POS_INGEST_TOKEN and SUPABASE_SERVICE_ROLE_KEY." },
+      { error: "POS ingest is not configured. Set SUPABASE_SERVICE_ROLE_KEY." },
       { status: 501 }
     );
   }
 
   const receivedToken = request.headers.get("x-zg-pos-token") || request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-  if (!receivedToken || receivedToken !== expectedToken) {
+  if (!receivedToken) {
     return NextResponse.json({ error: "Invalid POS ingest token" }, { status: 401 });
   }
 
@@ -58,9 +67,10 @@ export async function POST(request: Request) {
     },
   });
 
-  const tenantId = await resolveTenantId(supabase, body);
+  const tokenTenantId = await resolveTenantIdFromPosToken(supabase, receivedToken);
+  const tenantId = tokenTenantId || (legacyToken && safeStringEqual(receivedToken, legacyToken) ? await resolveTenantId(supabase, body) : "");
   if (!tenantId) {
-    return NextResponse.json({ error: "Missing or unknown tenant. Send tenantId or tenantEmail." }, { status: 404 });
+    return NextResponse.json({ error: "Invalid POS ingest token or unknown tenant." }, { status: 401 });
   }
 
   const parsed = posFromPayload(body);
@@ -129,10 +139,38 @@ async function resolveTenantId(supabase: SupabaseClient, body: Record<string, un
   return typeof data?.tenant_id === "string" ? data.tenant_id : "";
 }
 
+async function resolveTenantIdFromPosToken(supabase: SupabaseClient, token: string) {
+  const tokenHash = hashPosToken(token);
+  const { data, error } = await supabase
+    .from("data_documents")
+    .select("tenant_id,payload")
+    .eq("key", posConnectionSettingsStorageKey);
+
+  if (error || !data) return "";
+
+  for (const row of data as PosSettingsDocumentRow[]) {
+    const settings = normalizePosConnectionSettings(row.payload);
+    if (!settings || !hasActivePosToken(settings)) continue;
+    if (safeStringEqual(settings.tokenHash, tokenHash)) return row.tenant_id;
+  }
+
+  return "";
+}
+
 function normalizeArray<T>(payload: unknown): T[] {
   return Array.isArray(payload) ? payload as T[] : [];
 }
 
 function stringValue(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function hashPosToken(token: string) {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+function safeStringEqual(left: string, right: string) {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+  return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
 }

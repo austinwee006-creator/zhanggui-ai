@@ -1,4 +1,11 @@
 import { pushDocument } from "./cloudSync";
+import {
+  normalizePosConnectionSettings,
+  posConnectionSettingsStorageKey,
+  type PosConnectionSettings,
+} from "./posConnection";
+
+export { posConnectionSettingsStorageKey, type PosConnectionSettings };
 
 export const orderRecordStorageKey = "zg_order_records_v2";
 export const legacyOrderRecordStorageKey = "zg_order_records_v1";
@@ -288,6 +295,14 @@ export function loadDailyClosingRecords(): DailyClosingRecord[] {
 
 export function saveDailyClosingRecords(records: DailyClosingRecord[]) {
   writeJson(dailyClosingStorageKey, records);
+}
+
+export function loadPosConnectionSettings(): PosConnectionSettings | null {
+  return normalizePosConnectionSettings(readJson<unknown>(posConnectionSettingsStorageKey, null));
+}
+
+export function savePosConnectionSettings(settings: PosConnectionSettings) {
+  writeJson(posConnectionSettingsStorageKey, settings);
 }
 
 export function loadInventoryItems(): InventoryItem[] {

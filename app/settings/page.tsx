@@ -220,6 +220,7 @@ const backupLabelTranslations: Record<string, string> = {
   供应商: "Suppliers",
   "采购/欠款": "Purchases/Payables",
   "POS 导入": "POS Import",
+  "POS 接入": "POS Connection",
   语言: "Language",
 };
 

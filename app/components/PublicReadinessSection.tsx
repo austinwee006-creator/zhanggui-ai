@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { getSupabase, isCloudEnabled } from "../lib/supabaseClient";
 import { backupDataItems, getStoredRecordCount } from "../lib/dataBackup";
-import { posImportStorageKey } from "../lib/businessRecords";
+import { loadPosConnectionSettings, posImportStorageKey } from "../lib/businessRecords";
+import { hasActivePosToken } from "../lib/posConnection";
 import { hasConfiguredRestaurantProfile, type RestaurantProfile } from "../lib/restaurantProfile";
 import type { Language } from "../lib/i18n";
 
@@ -48,6 +49,7 @@ export default function PublicReadinessSection({ profile, language, dataVersion 
     totalRecords: businessItems.reduce((sum, item) => sum + getStoredRecordCount(item.key), 0),
     posImports: getStoredRecordCount(posImportStorageKey),
   };
+  const posConnectionReady = hasActivePosToken(loadPosConnectionSettings());
 
   const profileReady = hasConfiguredRestaurantProfile(profile);
   const accountReady = Boolean(cloud && email);
@@ -123,6 +125,22 @@ export default function PublicReadinessSection({ profile, language, dataVersion 
           ? "Can import POS daily reports; test once with the customer's POS report before handoff"
           : "可导入 POS 日报；建议交付前先用客户 POS 报表测试一次",
       done: counts.posImports > 0,
+      optional: true,
+    },
+    {
+      label: isEnglish ? "POS Webhook Key" : "POS 自动接入口令",
+      detail: posConnectionReady
+        ? isEnglish
+          ? "This store has its own POS webhook token"
+          : "这家店已生成自己的 POS webhook 密钥"
+        : accountReady
+        ? isEnglish
+          ? "Generate a store-specific POS token before connecting a real POS vendor"
+          : "接真实 POS 厂商前，请先生成这家店自己的密钥"
+        : isEnglish
+        ? "Sign in with a cloud account before enabling POS webhook"
+        : "登入云端账号后才可启用 POS webhook",
+      done: posConnectionReady,
       optional: true,
     },
     {
