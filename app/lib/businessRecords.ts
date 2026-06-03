@@ -181,6 +181,7 @@ export type PosImportRecord = {
   orderCount: string;
   notes: string;
   createdAt: string;
+  externalId?: string;
 };
 
 function canUseStorage() {
@@ -424,6 +425,7 @@ export function loadPosImportRecords(): PosImportRecord[] {
     orderCount: record.orderCount || "0",
     notes: record.notes || "",
     createdAt: record.createdAt || new Date().toISOString(),
+    externalId: record.externalId || "",
   }));
 }
 

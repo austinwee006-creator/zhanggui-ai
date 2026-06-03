@@ -9,10 +9,17 @@ import {
   loadPosImportRecords,
   saveDailyClosingRecords,
   savePosImportRecords,
-  toNumber,
   type DailyClosingRecord,
   type PosImportRecord,
 } from "../lib/businessRecords";
+import {
+  emptyParsedPos,
+  parsePosReport,
+  posGross,
+  toPosNumber,
+  upsertClosingFromPos,
+  type ParsedPos,
+} from "../lib/posIntegration";
 
 const todayText = new Date().toISOString().slice(0, 10);
 const sampleReport = `Date,2026-06-02
@@ -24,35 +31,24 @@ Foodpanda Sales,250.00
 Platform Commission,72.00
 Bills,86`;
 
-type ParsedPos = Omit<PosImportRecord, "id" | "createdAt">;
-
-const emptyParsed = (date: string, sourceName: string): ParsedPos => ({
-  date,
-  sourceName,
-  rawText: "",
-  cashSales: "0",
-  qrSales: "0",
-  cardSales: "0",
-  platformSales: "0",
-  otherSales: "0",
-  platformFees: "0",
-  orderCount: "0",
-  notes: "",
-});
-
 export default function PosPage() {
   const [date, setDate] = useState(todayText);
   const [sourceName, setSourceName] = useState("POS");
   const [rawText, setRawText] = useState("");
-  const [parsed, setParsed] = useState<ParsedPos>(() => emptyParsed(todayText, "POS"));
+  const [parsed, setParsed] = useState<ParsedPos>(() => emptyParsedPos(todayText, "POS"));
   const [imports, setImports] = useState<PosImportRecord[]>([]);
   const [closings, setClosings] = useState<DailyClosingRecord[]>([]);
   const [status, setStatus] = useState("");
+  const [apiConfigured, setApiConfigured] = useState<boolean | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setImports(loadPosImportRecords());
       setClosings(loadDailyClosingRecords());
+      fetch("/api/pos/ingest")
+        .then((response) => response.json())
+        .then((data: { configured?: boolean }) => setApiConfigured(Boolean(data.configured)))
+        .catch(() => setApiConfigured(false));
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
@@ -78,7 +74,7 @@ export default function PosPage() {
   }), [parsed]);
 
   const grossSales = closingGrossSales(previewClosing);
-  const hasParsedSales = grossSales > 0 || toNumber(parsed.platformFees) > 0 || toNumber(parsed.orderCount) > 0;
+  const hasParsedSales = grossSales > 0 || toPosNumber(parsed.platformFees) > 0 || toPosNumber(parsed.orderCount) > 0;
   const todayExisting = closings.find((record) => record.date === parsed.date);
 
   const parseReport = () => {
@@ -143,8 +139,42 @@ export default function PosPage() {
       <main className="space-y-5 px-4 py-5">
         <section className="grid grid-cols-3 gap-2.5">
           <Metric label="识别营业额" value={formatMoney(grossSales)} />
-          <Metric label="平台费用" value={formatMoney(toNumber(parsed.platformFees))} tone="amber" />
-          <Metric label="订单数" value={`${toNumber(parsed.orderCount).toFixed(0)} 单`} />
+          <Metric label="平台费用" value={formatMoney(toPosNumber(parsed.platformFees))} tone="amber" />
+          <Metric label="订单数" value={`${toPosNumber(parsed.orderCount).toFixed(0)} 单`} />
+        </section>
+
+        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/30">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-medium text-amber-700 dark:text-amber-300">实体 POS 接入</p>
+              <h2 className="mt-1 text-sm font-semibold leading-6 text-stone-900 dark:text-stone-100">
+                POS 机可以用浏览器/PWA 打开掌柜 AI；如果 POS 厂商能发 webhook，就把日结数据 POST 到掌柜 AI。
+              </h2>
+            </div>
+            <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${apiConfigured ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300" : "bg-white text-amber-600 dark:bg-stone-950/60 dark:text-amber-300"}`}>
+              {apiConfigured ? "API Ready" : "待配置"}
+            </span>
+          </div>
+          <div className="mt-3 space-y-2 text-xs leading-5 text-amber-700/90 dark:text-amber-200/80">
+            <p>1. POS 机/收银电脑：直接打开线上网址，加入主屏幕或桌面。</p>
+            <p>2. POS 报表：上传 CSV，或贴日报文字。</p>
+            <p>3. 自动接入：让 POS、Make、Zapier 或本地小工具呼叫 <span className="font-mono">POST /api/pos/ingest</span>。</p>
+            {apiConfigured === false && <p className="font-medium">自动接入上线前，需要先在 Vercel 加 `SUPABASE_SERVICE_ROLE_KEY` 和 `POS_INGEST_TOKEN`。</p>}
+          </div>
+          <pre className="mt-3 overflow-x-auto rounded-xl bg-stone-950 px-3 py-3 text-[11px] leading-5 text-stone-100">{`POST /api/pos/ingest
+Header: x-zg-pos-token: <your-token>
+Body:
+{
+  "tenantEmail": "owner@example.com",
+  "date": "2026-06-02",
+  "sourceName": "StoreHub POS",
+  "cashSales": 1280.5,
+  "qrSales": 860,
+  "cardSales": 420,
+  "platformSales": 560,
+  "platformFees": 72,
+  "orderCount": 86
+}`}</pre>
         </section>
 
         <section className="rounded-2xl bg-stone-900 p-4 text-white dark:bg-stone-100 dark:text-stone-950">
@@ -234,7 +264,7 @@ export default function PosPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold text-stone-900 dark:text-stone-100">{record.date} · {record.sourceName}</p>
-                      <p className="mt-1 text-xs text-stone-400">订单 {toNumber(record.orderCount).toFixed(0)} 单 · 平台费用 {formatMoney(toNumber(record.platformFees))}</p>
+                      <p className="mt-1 text-xs text-stone-400">订单 {toPosNumber(record.orderCount).toFixed(0)} 单 · 平台费用 {formatMoney(toPosNumber(record.platformFees))}</p>
                     </div>
                     <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-300">
                       {formatMoney(posGross(record))}
@@ -248,82 +278,6 @@ export default function PosPage() {
       </main>
     </div>
   );
-}
-
-function parsePosReport(text: string, date: string, sourceName: string): ParsedPos {
-  const result = emptyParsed(date, sourceName);
-  result.rawText = text;
-
-  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  for (const line of lines) {
-    const normalized = line.toLowerCase();
-    const amount = amountFromLine(line);
-    if (amount === null) continue;
-
-    if (/(commission|fee|charge|抽佣|手续费|平台费)/i.test(normalized)) {
-      result.platformFees = addMoney(result.platformFees, amount);
-    } else if (/(grabfood|foodpanda|shopee|delivery|deliveroo|platform|外卖|平台)/i.test(normalized)) {
-      result.platformSales = addMoney(result.platformSales, amount);
-    } else if (/(cash|tunai|现金)/i.test(normalized)) {
-      result.cashSales = addMoney(result.cashSales, amount);
-    } else if (/(duitnow|qr|tng|touch.?n.?go|boost|grabpay|ewallet|e-wallet|wallet|电子钱包|扫码)/i.test(normalized)) {
-      result.qrSales = addMoney(result.qrSales, amount);
-    } else if (/(card|visa|master|debit|credit|amex|刷卡|银行卡|信用卡)/i.test(normalized)) {
-      result.cardSales = addMoney(result.cardSales, amount);
-    } else if (/(bill|receipt|transaction|order count|orders|pax|单数|订单数|账单)/i.test(normalized)) {
-      result.orderCount = String(Math.round(amount));
-    } else if (/(other|misc|others|其他)/i.test(normalized)) {
-      result.otherSales = addMoney(result.otherSales, amount);
-    }
-  }
-
-  const gross = posGross(result);
-  result.notes = gross > 0
-    ? `已识别 ${sourceName || "POS"} 报表：营业额 ${formatMoney(gross)}，订单 ${toNumber(result.orderCount).toFixed(0)} 单。`
-    : "没有识别到营业额，请检查 POS 报表字段，或手动填写金额。";
-  return result;
-}
-
-function amountFromLine(line: string) {
-  const matches = line.match(/-?\d[\d,]*(?:\.\d+)?/g);
-  if (!matches || matches.length === 0) return null;
-  const last = matches[matches.length - 1].replace(/,/g, "");
-  const value = Number(last);
-  return Number.isFinite(value) ? value : null;
-}
-
-function addMoney(current: string, amount: number) {
-  return (toNumber(current) + amount).toFixed(2);
-}
-
-function posGross(record: Pick<PosImportRecord, "cashSales" | "qrSales" | "cardSales" | "platformSales" | "otherSales">) {
-  return toNumber(record.cashSales) + toNumber(record.qrSales) + toNumber(record.cardSales) + toNumber(record.platformSales) + toNumber(record.otherSales);
-}
-
-function upsertClosingFromPos(records: DailyClosingRecord[], pos: PosImportRecord) {
-  const existing = records.find((record) => record.date === pos.date);
-  const posNote = `POS 导入：${pos.sourceName}，营业额 ${formatMoney(posGross(pos))}，订单 ${toNumber(pos.orderCount).toFixed(0)} 单。`;
-  const nextRecord: DailyClosingRecord = {
-    id: existing?.id || String(Date.now() + 1),
-    date: pos.date,
-    cashSales: pos.cashSales,
-    qrSales: pos.qrSales,
-    cardSales: pos.cardSales,
-    platformSales: pos.platformSales,
-    otherSales: pos.otherSales,
-    cashInDrawer: existing?.cashInDrawer || "0",
-    platformFees: pos.platformFees,
-    foodPurchase: existing?.foodPurchase || "0",
-    packagingCost: existing?.packagingCost || "0",
-    staffCost: existing?.staffCost || "0",
-    rentUtility: existing?.rentUtility || "0",
-    otherExpense: existing?.otherExpense || "0",
-    wastage: existing?.wastage || "0",
-    notes: existing?.notes ? `${existing.notes}\n${posNote}` : posNote,
-    createdAt: existing?.createdAt || new Date().toISOString(),
-  };
-
-  return [nextRecord, ...records.filter((record) => record.date !== pos.date)].slice(0, 120);
 }
 
 function Metric({ label, value, tone = "stone" }: { label: string; value: string; tone?: "stone" | "amber" }) {

@@ -59,6 +59,8 @@ Vercel 项目需要配置这些环境变量：
 - `ACCESS_PASSWORD`
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `POS_INGEST_TOKEN`
 
 配置后重新部署。生产构建命令：
 
@@ -75,9 +77,39 @@ npm run build
 3. 「忘记密码？」能发送邮件，并回到 `/login?reset=1` 设置新密码。
 4. demo 模式不会污染正式帐号资料。
 5. `/pos` 能导入 POS CSV / 文字日报，并写入每日结算。
-6. 设置页能下载备份、上传本机资料到云端、清除云端业务资料。
-7. `npm run lint` 没有 error。
-8. `npm run build` 通过。
+6. 实体 POS / Make / Zapier 可用 `POST /api/pos/ingest` 写入 POS 日结；请求必须带 `x-zg-pos-token`，payload 需包含 `tenantEmail` 或 `tenantId`。
+7. 设置页能下载备份、上传本机资料到云端、清除云端业务资料。
+8. `npm run lint` 没有 error。
+9. `npm run build` 通过。
+
+## 实体 POS 接入
+
+掌柜 AI 先支持三种 POS 场景：
+
+1. POS 机 / 收银电脑直接打开线上网址，并用浏览器或 PWA 模式使用。
+2. 从 POS 导出 CSV / 文字日报，到 `/pos` 上传或粘贴，自动写入每日结算。
+3. 如果 POS 厂商、Make、Zapier 或本地小工具能发 webhook，可呼叫：
+
+```bash
+curl -X POST https://app-tan-ten-65.vercel.app/api/pos/ingest \
+  -H "Content-Type: application/json" \
+  -H "x-zg-pos-token: <POS_INGEST_TOKEN>" \
+  -d '{
+    "tenantEmail": "owner@example.com",
+    "date": "2026-06-02",
+    "sourceName": "StoreHub POS",
+    "cashSales": 1280.5,
+    "qrSales": 860,
+    "cardSales": 420,
+    "platformSales": 560,
+    "platformFees": 72,
+    "orderCount": 86
+  }'
+```
+
+API 会更新该餐厅云端的 `POS 导入` 和 `每日结算`。`SUPABASE_SERVICE_ROLE_KEY` 只能放在服务端环境变量，不能暴露给浏览器或客户。
+
+可用 `GET /api/pos/ingest` 检查自动接入是否已配置；返回 `configured: true` 才代表 webhook 可以正式写入云端。
 
 ## 数据说明
 

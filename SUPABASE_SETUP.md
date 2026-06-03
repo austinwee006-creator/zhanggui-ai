@@ -19,9 +19,10 @@
 
 ## 三、拿到金钥
 
-左侧 **Project Settings → API**，复制两个值：
+左侧 **Project Settings → API**，复制这些值：
 - **Project URL** → 填到 `NEXT_PUBLIC_SUPABASE_URL`
 - **anon public** key → 填到 `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- **service_role** key → 填到 `SUPABASE_SERVICE_ROLE_KEY`（只放服务器 / Vercel 环境变量，不可放到前端公开）
 
 > anon key 是公开金钥，放前端是安全的——真正的资料隔离靠资料表上的 RLS（已在 SQL 里设好）。
 
@@ -32,9 +33,11 @@
 ```
 NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGci...
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGci...
+POS_INGEST_TOKEN=自己生成一串长随机字串
 ```
 
-**Vercel**：项目 → Settings → Environment Variables，加同样两个变量（Production + Preview），然后 Redeploy。
+**Vercel**：项目 → Settings → Environment Variables，加上同样环境变量（Production + Preview），然后 Redeploy。
 
 ## 五、（建议）关掉邮箱验证，让注册即用
 
@@ -70,6 +73,29 @@ Supabase 控制台 → **Authentication → URL Configuration**：
 - 登入时云端资料会覆盖本地（精确镜像），确保换设备看到的是同一份、且不会残留上一个帐号的资料。
 - 想把现有本机资料搬上云：登入后到 **设置 → 帐号 → 上传本机资料到云端**。
 - 客户要清空测试资料或结束使用：先到 **设置 → 数据备份 → 下载备份**，再到 **设置 → 帐号 → 清除云端业务资料**。这个操作会删除云端和本机业务资料，但不会删除登入帐号本身。
+
+## 实体 POS webhook 接入
+
+如果餐厅的 POS、Make、Zapier 或本地小工具可以发 HTTP webhook，可把每日 POS 结算直接写入掌柜 AI：
+
+```bash
+curl -X POST https://app-tan-ten-65.vercel.app/api/pos/ingest \
+  -H "Content-Type: application/json" \
+  -H "x-zg-pos-token: <POS_INGEST_TOKEN>" \
+  -d '{
+    "tenantEmail": "owner@example.com",
+    "date": "2026-06-02",
+    "sourceName": "POS",
+    "cashSales": 1280.5,
+    "qrSales": 860,
+    "cardSales": 420,
+    "platformSales": 560,
+    "platformFees": 72,
+    "orderCount": 86
+  }'
+```
+
+也可以发送 `reportText`，系统会按 CSV / 文字日报规则尝试识别金额。接口会同时更新云端 `POS 导入` 和 `每日结算`。如果 POS 厂商要做正式双向 API，需要向该 POS 厂商申请 API key / webhook 权限后再做品牌适配。
 
 ## 后续可强化（非必须）
 
