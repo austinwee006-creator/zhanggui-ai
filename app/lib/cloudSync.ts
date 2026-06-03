@@ -104,18 +104,30 @@ export function pushDocument(key: string, value: unknown) {
     key,
     setTimeout(async () => {
       pushTimers.delete(key);
-      const tenantId = await getTenantId();
-      if (!tenantId) return;
-      try {
-        await sb.from("data_documents").upsert(
-          { tenant_id: tenantId, key, payload: value, updated_at: new Date().toISOString() },
-          { onConflict: "tenant_id,key" }
-        );
-      } catch {
-        /* 离线时静默失败，资料仍在本地，下次写入或重连后再推 */
-      }
+      await pushDocumentNow(key, value);
     }, 600)
   );
+}
+
+// 需要确保资料马上进云端的场景使用，例如注册后建立品牌资料。
+export async function pushDocumentNow(key: string, value: unknown): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+  if (!SYNC_KEY_SET.has(key)) return false;
+  const sb = getSupabase();
+  if (!sb) return false;
+
+  const tenantId = await getTenantId();
+  if (!tenantId) return false;
+
+  try {
+    const { error } = await sb.from("data_documents").upsert(
+      { tenant_id: tenantId, key, payload: value, updated_at: new Date().toISOString() },
+      { onConflict: "tenant_id,key" }
+    );
+    return !error;
+  } catch {
+    return false;
+  }
 }
 
 // 登出：清掉本地业务资料，避免下一个登入者看到上一个人的资料。

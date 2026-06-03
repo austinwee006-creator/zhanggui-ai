@@ -3,11 +3,19 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabase, isCloudEnabled } from "../lib/supabaseClient";
-import { hydrateFromCloud, resetTenantCache } from "../lib/cloudSync";
+import { hydrateFromCloud, pushDocumentNow, resetTenantCache } from "../lib/cloudSync";
+import {
+  defaultRestaurantProfile,
+  loadRestaurantProfile,
+  restaurantProfileStorageKey,
+  saveRestaurantProfile,
+  type RestaurantProfile,
+} from "../lib/restaurantProfile";
 
 type AuthMode = "login" | "register";
 type Mode = AuthMode | "reset" | "new-password";
 const AUTH_MODES: AuthMode[] = ["login", "register"];
+const pendingRegistrationProfileKey = "zg_pending_registration_profile_v1";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,6 +27,7 @@ export default function LoginPage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [restaurantName, setRestaurantName] = useState("");
+  const [signature, setSignature] = useState("");
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(false);
@@ -79,22 +88,40 @@ export default function LoginPage() {
       let accessToken: string | null = null;
 
       if (mode === "register") {
+        const onboardingProfile = buildOnboardingProfile(restaurantName, signature);
         const { data, error: err } = await sb.auth.signUp({
           email: email.trim(),
           password,
-          options: { data: { restaurant_name: restaurantName.trim() } },
+          options: {
+            data: {
+              restaurant_name: onboardingProfile.name,
+              restaurant_signature: onboardingProfile.signature,
+            },
+          },
         });
         if (err) {
           setError(err.message);
           return;
         }
         if (!data.session) {
+          savePendingRegistrationProfile(email.trim(), onboardingProfile);
           // 开启了 email 验证：提示去信箱确认
           setInfo("注册成功，请到邮箱点击确认信后再登入。");
           setMode("login");
           return;
         }
         accessToken = data.session.access_token;
+        if (data.user) {
+          await sb.from("profiles").upsert(
+            {
+              user_id: data.user.id,
+              tenant_id: data.user.id,
+              email: data.user.email,
+              restaurant_name: onboardingProfile.name || null,
+            },
+            { onConflict: "user_id" }
+          );
+        }
       } else {
         const { data, error: err } = await sb.auth.signInWithPassword({
           email: email.trim(),
@@ -121,6 +148,11 @@ export default function LoginPage() {
       resetTenantCache();
       await setGateAndEnter({ authed: true, accessToken });
       await hydrateFromCloud();
+      if (mode === "register") {
+        await applyOnboardingProfile(buildOnboardingProfile(restaurantName, signature));
+      } else {
+        await applyOnboardingProfile(takePendingRegistrationProfile(email.trim()));
+      }
       router.replace("/");
     } catch {
       setError("登入验证失败，请重试");
@@ -371,14 +403,25 @@ export default function LoginPage() {
             ) : (
               <form onSubmit={handleCloudAuth} className="space-y-3">
                 {mode === "register" && (
-                  <input
-                    type="text"
-                    value={restaurantName}
-                    onChange={(e) => setRestaurantName(e.target.value)}
-                    placeholder="餐厅名称（可选）"
-                    disabled={loading}
-                    className={inputCls}
-                  />
+                  <>
+                    <input
+                      type="text"
+                      value={restaurantName}
+                      onChange={(e) => setRestaurantName(e.target.value)}
+                      placeholder="餐厅/品牌名称"
+                      autoComplete="organization"
+                      disabled={loading}
+                      className={inputCls}
+                    />
+                    <input
+                      type="text"
+                      value={signature}
+                      onChange={(e) => setSignature(e.target.value)}
+                      placeholder="主推产品/服务（可选）"
+                      disabled={loading}
+                      className={inputCls}
+                    />
+                  </>
                 )}
                 <input
                   type="email"
@@ -404,8 +447,8 @@ export default function LoginPage() {
 
                 <button
                   type="submit"
-                  disabled={!email.trim() || !password.trim() || loading}
-                  className={primaryBtn(Boolean(email.trim() && password.trim() && !loading))}
+                  disabled={!canSubmitCloudAuth(mode, email, password, restaurantName) || loading}
+                  className={primaryBtn(Boolean(canSubmitCloudAuth(mode, email, password, restaurantName) && !loading))}
                 >
                   {loading ? "处理中..." : mode === "login" ? "登入" : "注册并进入"}
                 </button>
@@ -492,4 +535,60 @@ export default function LoginPage() {
       </div>
     </div>
   );
+}
+
+function canSubmitCloudAuth(mode: Mode, email: string, password: string, restaurantName: string) {
+  if (!email.trim() || !password.trim()) return false;
+  if (mode === "register" && !restaurantName.trim()) return false;
+  return true;
+}
+
+function buildOnboardingProfile(restaurantName: string, signature: string): RestaurantProfile {
+  return {
+    ...defaultRestaurantProfile,
+    name: restaurantName.trim(),
+    signature: signature.trim(),
+    tone: "亲切、专业、直接成交",
+  };
+}
+
+async function applyOnboardingProfile(profile: RestaurantProfile | null) {
+  if (!profile || (!profile.name.trim() && !profile.signature.trim())) return;
+
+  const current = loadRestaurantProfile();
+  const next: RestaurantProfile = {
+    ...current,
+    name: current.name.trim() || profile.name,
+    signature: current.signature.trim() || profile.signature,
+    tone: current.tone.trim() || profile.tone,
+  };
+
+  saveRestaurantProfile(next);
+  await pushDocumentNow(restaurantProfileStorageKey, next);
+}
+
+function savePendingRegistrationProfile(email: string, profile: RestaurantProfile) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      pendingRegistrationProfileKey,
+      JSON.stringify({ email: email.trim().toLowerCase(), profile })
+    );
+  } catch {
+    /* ignore storage failures */
+  }
+}
+
+function takePendingRegistrationProfile(email: string): RestaurantProfile | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(pendingRegistrationProfileKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { email?: string; profile?: Partial<RestaurantProfile> };
+    if (parsed.email !== email.trim().toLowerCase()) return null;
+    window.localStorage.removeItem(pendingRegistrationProfileKey);
+    return { ...defaultRestaurantProfile, ...parsed.profile };
+  } catch {
+    return null;
+  }
 }
