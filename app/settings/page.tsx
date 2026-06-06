@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useLanguage } from "../components/LanguageProvider";
 import AccountSection from "../components/AccountSection";
 import PublicReadinessSection from "../components/PublicReadinessSection";
+import TeamSection from "../components/TeamSection";
 import type { Language } from "../lib/i18n";
 import {
   backupDataItems,
@@ -100,6 +101,7 @@ export default function SettingsPage() {
 
       <main className="px-4 py-5 space-y-5">
         <AccountSection />
+        <TeamSection />
         <PublicReadinessSection profile={profile} language={language} dataVersion={dataVersion} />
 
         <section data-version={dataVersion} className="rounded-2xl bg-white dark:bg-stone-900/60 border border-stone-200/70 dark:border-stone-800 p-4">

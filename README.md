@@ -75,12 +75,14 @@ npm run build
 1. 线上 `/login` 能注册新帐号。
 2. 同一个帐号在两个浏览器登入后能看到同一份订单 / 客户资料。
 3. 「忘记密码？」能发送邮件，并回到 `/login?reset=1` 设置新密码。
-4. demo 模式不会污染正式帐号资料。
-5. `/pos` 能导入 POS CSV / 文字日报，并写入每日结算。
-6. 实体 POS / Make / Zapier 可用 `POST /api/pos/ingest` 写入 POS 日结；每家店必须先在 `/pos` 生成自己的 `x-zg-pos-token`。
-7. 设置页能下载备份、上传本机资料到云端、清除云端业务资料。
-8. `npm run lint` 没有 error。
-9. `npm run build` 通过。
+4. 老板账号能在设置页生成员工邀请码；员工账号输入邀请码后能加入同一家店。
+5. 员工账号不能清除云端资料、不能覆盖店铺云端资料、不能生成 / 重置 POS webhook 密钥。
+6. demo 模式不会污染正式帐号资料。
+7. `/pos` 能导入 POS CSV / 文字日报，并写入每日结算。
+8. 实体 POS / Make / Zapier 可用 `POST /api/pos/ingest` 写入 POS 日结；每家店必须先在 `/pos` 生成自己的 `x-zg-pos-token`。
+9. 设置页能下载备份、上传本机资料到云端、清除云端业务资料。
+10. `npm run lint` 没有 error。
+11. `npm run build` 通过。
 
 ## 实体 POS 接入
 
@@ -119,5 +121,6 @@ App 采用本地优先 + 云端镜像：
 - 登入云端帐号后，资料会同步到 Supabase 的 `data_documents`。
 - 每个帐号通过 Supabase RLS 隔离资料。
 - 登出会清除本机业务资料，避免下一位使用同一台电脑的人看到前一个账号的数据。
+- 老板账号可在设置页生成员工邀请码。员工加入后会共用同一个 `tenant_id`，但 App 会隐藏清除云端资料、覆盖云端资料和 POS webhook 密钥管理等危险操作。
 
 客户要清空测试资料时，应先下载备份，再到设置页清除云端业务资料。

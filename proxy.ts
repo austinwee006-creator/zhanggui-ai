@@ -8,6 +8,7 @@ export function proxy(request: NextRequest) {
     pathname.startsWith("/login") ||
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/pos/ingest") ||
+    pathname.startsWith("/api/team") ||
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
     // PWA 资产必须可匿名存取，否则安装/离线会坏

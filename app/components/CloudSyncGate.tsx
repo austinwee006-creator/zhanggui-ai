@@ -10,7 +10,9 @@ import { clearLocalBusinessData, hydrateFromCloud, resetTenantCache } from "../l
 export default function CloudSyncGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isLogin = pathname === "/login";
-  const [ready, setReady] = useState(() => isLogin || !isCloudEnabled());
+  const cloudEnabled = isCloudEnabled();
+  const [readyPathname, setReadyPathname] = useState(() => (isLogin || !cloudEnabled ? pathname : ""));
+  const ready = isLogin || !cloudEnabled || readyPathname === pathname;
 
   useEffect(() => {
     if (isLogin) return;
@@ -19,13 +21,13 @@ export default function CloudSyncGate({ children }: { children: React.ReactNode 
 
     let cancelled = false;
     // 兜底：hydrate 卡住也不要白屏超过 4 秒
-    const fallback = setTimeout(() => !cancelled && setReady(true), 4000);
+    const fallback = setTimeout(() => !cancelled && setReadyPathname(pathname), 4000);
 
     sb.auth.getSession().then(async ({ data: { session } }) => {
       if (session) await hydrateFromCloud();
       if (!cancelled) {
         clearTimeout(fallback);
-        setReady(true);
+        setReadyPathname(pathname);
       }
     });
 
@@ -45,7 +47,7 @@ export default function CloudSyncGate({ children }: { children: React.ReactNode 
       clearTimeout(fallback);
       sub.subscription.unsubscribe();
     };
-  }, [isLogin]);
+  }, [isLogin, pathname]);
 
   if (isLogin) return <>{children}</>;
 

@@ -16,6 +16,7 @@ import {
   type PosImportRecord,
 } from "../lib/businessRecords";
 import { getSupabase, isCloudEnabled } from "../lib/supabaseClient";
+import { getCurrentTenantProfile, type TenantProfile } from "../lib/cloudSync";
 import {
   emptyParsedPos,
   parsePosReport,
@@ -45,6 +46,7 @@ export default function PosPage() {
   const [status, setStatus] = useState("");
   const [apiConfigured, setApiConfigured] = useState<boolean | null>(null);
   const [accountEmail, setAccountEmail] = useState<string | null>(null);
+  const [tenantProfile, setTenantProfile] = useState<TenantProfile | null>(null);
   const [posSettings, setPosSettings] = useState<PosConnectionSettings | null>(null);
   const [generatedToken, setGeneratedToken] = useState("");
   const [connectionStatus, setConnectionStatus] = useState("");
@@ -66,6 +68,7 @@ export default function PosPage() {
     const sb = getSupabase();
     if (!sb) return;
     sb.auth.getUser().then(({ data }) => setAccountEmail(data.user?.email ?? null));
+    getCurrentTenantProfile().then(setTenantProfile);
   }, []);
 
   const previewClosing = useMemo<DailyClosingRecord>(() => ({
@@ -92,8 +95,9 @@ export default function PosPage() {
   const hasParsedSales = grossSales > 0 || toPosNumber(parsed.platformFees) > 0 || toPosNumber(parsed.orderCount) > 0;
   const todayExisting = closings.find((record) => record.date === parsed.date);
   const cloudReady = isCloudEnabled() && Boolean(accountEmail);
+  const ownerCanManagePos = cloudReady && tenantProfile?.isOwner === true;
   const tokenReady = Boolean(posSettings?.enabled && posSettings.tokenHash);
-  const apiStatusLabel = apiConfigured === null ? "检查中" : apiConfigured === false ? "待配置" : !cloudReady ? "先登入账号" : tokenReady ? "店铺已接入" : "生成店铺密钥";
+  const apiStatusLabel = apiConfigured === null ? "检查中" : apiConfigured === false ? "待配置" : !cloudReady ? "先登入账号" : tokenReady ? "店铺已接入" : !tenantProfile ? "检查账号" : !ownerCanManagePos ? "老板账号操作" : "生成店铺密钥";
   const sampleApiBody = `POST /api/pos/ingest
 Header: x-zg-pos-token: ${generatedToken || "<restaurant-pos-token>"}
 Body:
@@ -159,6 +163,10 @@ Body:
       setConnectionStatus("请先用正式云端账号登入；店铺 POS 密钥要同步到云端后才可接收 webhook。");
       return;
     }
+    if (!ownerCanManagePos) {
+      setConnectionStatus("只有老板账号可以生成或重置 POS webhook 密钥。");
+      return;
+    }
 
     const token = createPosToken();
     const now = new Date().toISOString();
@@ -180,6 +188,10 @@ Body:
 
   const disableConnection = () => {
     if (!posSettings) return;
+    if (!ownerCanManagePos) {
+      setConnectionStatus("只有老板账号可以停用 POS webhook 密钥。");
+      return;
+    }
     const settings = { ...posSettings, enabled: false, rotatedAt: new Date().toISOString() };
     savePosConnectionSettings(settings);
     setPosSettings(settings);
@@ -237,6 +249,7 @@ Body:
             <p>3. 自动接入：每家店生成自己的 POS 密钥，让 POS、Make、Zapier 或本地小工具呼叫 <span className="font-mono">POST /api/pos/ingest</span>。</p>
             {apiConfigured === false && <p className="font-medium">自动接入上线前，需要先在 Vercel 加 `SUPABASE_SERVICE_ROLE_KEY`。</p>}
             {apiConfigured && !cloudReady && <p className="font-medium">请先登入正式云端账号，POS 密钥才会同步到这家店的云端资料。</p>}
+            {apiConfigured && cloudReady && tenantProfile?.isOwner === false && <p className="font-medium">员工账号可以导入 POS 日报，但生成或重置 webhook 密钥需要老板账号操作。</p>}
           </div>
           <div className="mt-4 space-y-3 border-t border-amber-200 pt-3 dark:border-amber-900/50">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -247,7 +260,7 @@ Body:
                 </p>
               </div>
               <div className="flex gap-2">
-                <button onClick={generateConnectionToken} disabled={!apiConfigured || !cloudReady} className="rounded-xl bg-stone-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40 dark:bg-stone-100 dark:text-stone-950">
+                <button onClick={generateConnectionToken} disabled={!apiConfigured || !ownerCanManagePos} className="rounded-xl bg-stone-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40 dark:bg-stone-100 dark:text-stone-950">
                   {tokenReady ? "重置密钥" : "生成密钥"}
                 </button>
                 {tokenReady && (

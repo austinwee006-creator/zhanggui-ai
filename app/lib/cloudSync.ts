@@ -25,6 +25,13 @@ const SYNC_KEY_SET = new Set<string>(SYNC_KEYS);
 let tenantIdCache: string | null = null;
 const pushTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
+export type TenantProfile = {
+  userId: string;
+  tenantId: string;
+  email: string;
+  isOwner: boolean;
+};
+
 function cancelPendingPushes() {
   for (const timer of pushTimers.values()) clearTimeout(timer);
   pushTimers.clear();
@@ -33,6 +40,11 @@ function cancelPendingPushes() {
 // 取得当前帐号的 tenant_id；profile 不存在时补建（客户端安全网，trigger 也会建）。
 async function getTenantId(): Promise<string | null> {
   if (tenantIdCache) return tenantIdCache;
+  const profile = await getCurrentTenantProfile();
+  return profile?.tenantId ?? null;
+}
+
+export async function getCurrentTenantProfile(): Promise<TenantProfile | null> {
   const sb = getSupabase();
   if (!sb) return null;
 
@@ -42,17 +54,27 @@ async function getTenantId(): Promise<string | null> {
   if (!session) return null;
 
   const userId = session.user.id;
-  const { data } = await sb.from("profiles").select("tenant_id").eq("user_id", userId).maybeSingle();
+  const { data } = await sb.from("profiles").select("tenant_id,email").eq("user_id", userId).maybeSingle();
 
   if (data?.tenant_id) {
     tenantIdCache = data.tenant_id as string;
-    return tenantIdCache;
+    return {
+      userId,
+      tenantId: data.tenant_id as string,
+      email: typeof data.email === "string" ? data.email : session.user.email ?? "",
+      isOwner: data.tenant_id === userId,
+    };
   }
 
   // 没有 profile：建立一个，tenant_id 默认 = 自己的 user id（餐厅老板）
   await sb.from("profiles").insert({ user_id: userId, tenant_id: userId, email: session.user.email });
   tenantIdCache = userId;
-  return tenantIdCache;
+  return {
+    userId,
+    tenantId: userId,
+    email: session.user.email ?? "",
+    isOwner: true,
+  };
 }
 
 export function resetTenantCache() {

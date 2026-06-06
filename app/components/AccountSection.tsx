@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "./LanguageProvider";
 import { getSupabase, isCloudEnabled } from "../lib/supabaseClient";
-import { clearCloudBusinessData, clearLocalBusinessData, pushAllLocalToCloud } from "../lib/cloudSync";
+import { clearCloudBusinessData, clearLocalBusinessData, getCurrentTenantProfile, pushAllLocalToCloud, type TenantProfile } from "../lib/cloudSync";
 
 export default function AccountSection() {
   const router = useRouter();
@@ -12,6 +12,7 @@ export default function AccountSection() {
   const isEnglish = language === "en";
   const cloud = isCloudEnabled();
   const [email, setEmail] = useState<string | null>(null);
+  const [tenantProfile, setTenantProfile] = useState<TenantProfile | null>(null);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
   const [installReady, setInstallReady] = useState(false);
@@ -21,6 +22,7 @@ export default function AccountSection() {
     const sb = getSupabase();
     if (!sb) return;
     sb.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null));
+    getCurrentTenantProfile().then(setTenantProfile);
   }, []);
 
   useEffect(() => {
@@ -35,6 +37,10 @@ export default function AccountSection() {
 
   const uploadLocal = async () => {
     if (busy) return;
+    if (tenantProfile && !tenantProfile.isOwner) {
+      setStatus(isEnglish ? "Only the owner can upload local data to cloud" : "只有老板账号可以上传本机资料到云端");
+      return;
+    }
     setBusy(true);
     setStatus("");
     const ok = await pushAllLocalToCloud();
@@ -58,6 +64,10 @@ export default function AccountSection() {
 
   const clearCloud = async () => {
     if (busy) return;
+    if (tenantProfile && !tenantProfile.isOwner) {
+      setStatus(isEnglish ? "Only the owner can clear cloud data" : "只有老板账号可以清除云端资料");
+      return;
+    }
     const confirmed = window.confirm(
       isEnglish
         ? "Clear cloud business data? This deletes orders, customers, cashbook, inventory, staff, bookings and supplier data. Download a backup first."
@@ -94,6 +104,7 @@ export default function AccountSection() {
       tone: email ? "good" : "warn",
     },
   ];
+  const isOwner = tenantProfile?.isOwner !== false;
 
   return (
     <section className="rounded-2xl bg-white dark:bg-stone-900/60 border border-stone-200/70 dark:border-stone-800 p-4">
@@ -107,8 +118,8 @@ export default function AccountSection() {
                 : "目前未接云端，资料只存这台设备。"
               : email
               ? isEnglish
-                ? `Signed in as ${email}. Data syncs to cloud; use the same account on another device.`
-                : `已登入：${email}（资料已云端同步，换设备登入同帐号即可看到）`
+                ? `Signed in as ${email}. ${tenantProfile?.isOwner === false ? "Staff account" : "Owner account"}; data syncs to cloud.`
+                : `已登入：${email}（${tenantProfile?.isOwner === false ? "员工账号" : "老板账号"}，资料已云端同步）`
               : isEnglish
               ? "Demo / local mode. Data is not syncing to cloud yet."
               : "目前为 demo / 本机模式，资料尚未云端同步。"}
@@ -144,27 +155,35 @@ export default function AccountSection() {
         <div className="mt-4 grid grid-cols-2 gap-2">
           {email && (
             <>
-              <button
-                onClick={uploadLocal}
-                disabled={busy}
-                className="rounded-xl border border-stone-200 px-3 py-2.5 text-xs font-semibold text-stone-600 disabled:opacity-50 dark:border-stone-700 dark:text-stone-300"
-              >
-                {isEnglish ? "Upload local data to cloud" : "上传本机资料到云端"}
-              </button>
+              {isOwner && (
+                <button
+                  onClick={uploadLocal}
+                  disabled={busy}
+                  className="rounded-xl border border-stone-200 px-3 py-2.5 text-xs font-semibold text-stone-600 disabled:opacity-50 dark:border-stone-700 dark:text-stone-300"
+                >
+                  {isEnglish ? "Upload local data to cloud" : "上传本机资料到云端"}
+                </button>
+              )}
               <button
                 onClick={changePassword}
                 disabled={busy}
-                className="rounded-xl border border-stone-200 px-3 py-2.5 text-xs font-semibold text-stone-600 disabled:opacity-50 dark:border-stone-700 dark:text-stone-300"
+                className={`${isOwner ? "" : "col-span-2"} rounded-xl border border-stone-200 px-3 py-2.5 text-xs font-semibold text-stone-600 disabled:opacity-50 dark:border-stone-700 dark:text-stone-300`}
               >
                 {isEnglish ? "Change password" : "更改密码"}
               </button>
-              <button
-                onClick={clearCloud}
-                disabled={busy}
-                className="col-span-2 rounded-xl border border-red-100 px-3 py-2.5 text-xs font-semibold text-red-500 disabled:opacity-50 dark:border-red-900/60 dark:text-red-300"
-              >
-                {isEnglish ? "Clear cloud business data" : "清除云端业务资料"}
-              </button>
+              {isOwner ? (
+                <button
+                  onClick={clearCloud}
+                  disabled={busy}
+                  className="col-span-2 rounded-xl border border-red-100 px-3 py-2.5 text-xs font-semibold text-red-500 disabled:opacity-50 dark:border-red-900/60 dark:text-red-300"
+                >
+                  {isEnglish ? "Clear cloud business data" : "清除云端业务资料"}
+                </button>
+              ) : (
+                <p className="col-span-2 rounded-xl bg-stone-100 px-3 py-2.5 text-xs leading-5 text-stone-500 dark:bg-stone-950 dark:text-stone-400">
+                  {isEnglish ? "Staff accounts cannot clear cloud data or overwrite the store cloud copy." : "员工账号不能清除云端资料，也不能用本机资料覆盖店铺云端资料。"}
+                </p>
+              )}
             </>
           )}
           <button
